@@ -1,0 +1,13 @@
+{
+  "input": {
+      "operators": [
+          {
+              "name": "operator_name_1",
+              "local_path": "/usr/local/job/data/input/operator_name_1/"
+          }
+      ]
+  },
+  "output": {
+      "local_path": "/usr/local/job/data"
+  }
+}

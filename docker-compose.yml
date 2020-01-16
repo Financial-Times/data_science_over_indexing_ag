@@ -1,0 +1,13 @@
+version: '2.1'
+
+services:
+
+  image:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ag_over_indexing:local
+    volumes:
+      - ./ag_over_indexing:/usr/local/job/ag_over_indexing
+      - ./data:/usr/local/job/data
+    container_name: ag_over_indexing

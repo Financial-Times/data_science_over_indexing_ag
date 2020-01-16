@@ -1,0 +1,68 @@
+version: 2
+jobs:
+
+  push-ecr-prod:
+    machine:
+      java:
+        version: oraclejdk8
+      services:
+        - docker
+
+    working_directory: ~/repo
+
+    environment:
+      - TOOLS_REPO: data-ecs-scripts
+      - SERVICE_NAME: ag_over_indexing
+      - AWS_REGION: eu-west-1
+
+    steps:
+      - checkout
+      - run:
+          name: Checkout tools repository
+          command: git clone git@github.com:Financial-Times/${TOOLS_REPO}
+      - run:
+          name: Adding prod credentials
+          command: |
+            mkdir ~/.aws && touch ~/.aws/credentials
+            echo -e "[default]\naws_access_key_id=$AWS_ACCESS_KEY_DEV\naws_secret_access_key=$AWS_SECRET_KEY_DEV\n" > ~/.aws/credentials
+      - run:
+          name: Building docker project
+          command: |
+            aws configure set default.region ${AWS_REGION}
+            $(aws ecr get-login --no-include-email)
+            REGISTRY_URL="${AWS_DEV_ACCOUNT_NUMBER}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+            echo "export REGISTRY_URL=${REGISTRY_URL}" >> cross_step_variables.sh
+            docker build -t ${REGISTRY_URL}/airflow-jobs-test .
+            docker tag ${REGISTRY_URL}/airflow-jobs-test ${REGISTRY_URL}/airflow-jobs-test:${SERVICE_NAME}___${CIRCLE_BUILD_NUM}
+            docker images
+      - run:
+          name: Push image to PROD ECR
+          command: |
+            source cross_step_variables.sh
+            set +x
+            aws configure set default.region ${AWS_REGION}
+            $(aws ecr get-login --no-include-email)
+            docker push ${REGISTRY_URL}/airflow-jobs-test:${SERVICE_NAME}___${CIRCLE_BUILD_NUM}
+      - run:
+          name: Version artifact and copy scripts
+          command: |
+            mkdir /tmp/workspace
+            echo ${SERVICE_NAME}___${CIRCLE_BUILD_NUM} > /tmp/workspace/version
+            cp ${TOOLS_REPO}/deploy_v4.sh /tmp/workspace/
+            cp ${TOOLS_REPO}/common.sh /tmp/workspace/
+            ls -ltr /tmp/workspace
+      - persist_to_workspace:
+          root: /tmp/workspace
+          paths:
+            - version
+            - deploy_v4.sh
+            - common.sh
+
+workflows:
+  version: 2
+  build-and-deploy:
+    jobs:
+      - push-ecr-prod:
+          filters:
+            branches:
+              only: master
